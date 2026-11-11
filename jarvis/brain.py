@@ -52,6 +52,7 @@ class Brain:
     def warmup(self) -> None:
         ollama.chat(model=self.cfg.llm_model, messages=[{"role": "user", "content": "hi"}],
                     think=self.cfg.llm_think, keep_alive=-1, options={"num_predict": 1})
+        self.memory._embed(["warmup"], "search_query")  # load the embedding model too
 
     def _messages(self, user_text: str) -> list[dict]:
         facts = self.memory.recall(user_text, self.cfg.recall_k, self.cfg.recall_min_score)

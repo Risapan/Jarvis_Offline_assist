@@ -146,7 +146,8 @@ def main() -> None:
             reply = " ".join(reply_parts)
             memory.add_turn("user", user_text)
             memory.add_turn("assistant", reply)
-            if cfg.learn_facts:
+            # Short replies like "yes" / "thanks" carry no facts; skip so the LLM stays free.
+            if cfg.learn_facts and len(user_text.split()) >= 4:
                 memory.learn_in_background(user_text, reply, on_learned)
     except KeyboardInterrupt:
         print()

@@ -53,7 +53,7 @@ class Memory:
     def _embed(self, texts: list[str], kind: str) -> np.ndarray:
         # nomic-embed-text expects task prefixes
         prefixed = [f"{kind}: {t}" for t in texts]
-        vecs = np.array(ollama.embed(model=self.embed_model, input=prefixed).embeddings, dtype=np.float32)
+        vecs = np.array(ollama.embed(model=self.embed_model, input=prefixed, keep_alive=-1).embeddings, dtype=np.float32)
         return vecs / np.linalg.norm(vecs, axis=1, keepdims=True)
 
     def _load_facts(self) -> None:
