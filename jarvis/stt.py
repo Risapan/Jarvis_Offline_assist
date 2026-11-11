@@ -14,9 +14,20 @@ _HALLUCINATIONS = {
 }
 
 
+def _local_path(model: str) -> str:
+    """Use the cached copy if the model was already downloaded, so startup never
+    touches the network. Falls back to the repo id (downloads on first run)."""
+    from huggingface_hub import snapshot_download
+
+    try:
+        return snapshot_download(model, local_files_only=True)
+    except Exception:
+        return model
+
+
 class Transcriber:
     def __init__(self, model: str, language: str = "en"):
-        self.model = model
+        self.model = _local_path(model)
         self.language = language
 
     def warmup(self) -> None:
