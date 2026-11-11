@@ -42,6 +42,28 @@ uv run jarvis --model jarvis     # use a different Ollama model
 
 Use headphones in voice mode. The mic is ignored while Jarvis is speaking, but laptop speakers can still bleed into the next turn.
 
+### Mac control
+
+Jarvis can control your Mac through tools the LLM calls:
+
+| Say something like | Tool |
+|---|---|
+| "Open VS Code" / "Switch to Chrome" | `open_app` (fuzzy name matching, so "vs code" finds Visual Studio Code) |
+| "Quit Telegram" | `quit_app` |
+| "What's running?" | `list_running_apps` |
+| "Type hello world" / "Press command T" | `type_text`, `press_keys` |
+| "Volume to 30" | `set_volume` |
+| "Next song" / "What's playing?" | `media_control` (Spotify or Music) |
+| "Open my Downloads folder" / "Open github.com" | `open_path`, `open_url` |
+| "How much disk space is free?" | `run_shell`, **asks yes/no first** |
+| "Make a note called groceries" | `run_applescript`, **asks yes/no first** |
+
+Raw shell and AppleScript always ask for a spoken **yes/no** before running, because a misheard
+command could do real damage. To turn that off: `JARVIS_CONFIRM_RISKY=0`. To disable tools entirely: `JARVIS_TOOLS_ENABLED=0`.
+
+**macOS permissions:** the first time, macOS asks to let your terminal control apps (Automation). Typing and
+key presses also need **System Settings → Privacy & Security → Accessibility** to be enabled for your terminal.
+
 ### Voice commands
 - **"Remember that …"**: stores a fact directly
 - **"What do you remember?"**: lists stored facts
@@ -72,5 +94,5 @@ Voices: `bm_george`, `bm_lewis`, `bm_daniel`, `bm_fable`, `bf_emma`, `bf_alice`,
 - [x] v0: streamed voice loop + persistent memory
 - [ ] v1: wake word ("Hey Jarvis"), barge-in (interrupt it mid-sentence)
 - [ ] v2: episodic daily summaries
-- [ ] v3: tools (open apps, files, calendar, shell with confirmation)
+- [x] v3: Mac control tools (apps, keys, typing, volume, media, files, shell/AppleScript with confirmation)
 - [ ] Custom voice (fine-tuned Piper / cloned voice from your own recordings)

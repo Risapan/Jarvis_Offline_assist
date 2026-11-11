@@ -23,14 +23,20 @@ class Config:
     # Brain
     llm_model: str = "qwen3:8b"
     llm_temperature: float = 0.6
+    llm_ctx: int = 8192  # room for tool schemas + memories + history
     llm_think: bool = False  # qwen3 "thinking" adds seconds of latency; keep off for chat
     history_turns: int = 10  # short-term memory: last N user/assistant pairs
+
+    # Hands (Mac control)
+    tools_enabled: bool = True
+    confirm_risky: bool = True  # ask "yes/no" before raw shell / AppleScript
+    max_tool_rounds: int = 5
 
     # Ears
     stt_model: str = "mlx-community/whisper-large-v3-turbo"
     language: str = "en"
     vad_aggressiveness: int = 2  # 0..3, higher = stricter about what counts as speech
-    end_silence_ms: int = 700  # silence that ends an utterance
+    end_silence_ms: int = 900  # silence that ends an utterance
     max_utterance_s: float = 30.0
 
     # Voice

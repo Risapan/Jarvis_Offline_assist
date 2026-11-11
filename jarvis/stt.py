@@ -26,9 +26,10 @@ def _local_path(model: str) -> str:
 
 
 class Transcriber:
-    def __init__(self, model: str, language: str = "en"):
+    def __init__(self, model: str, language: str = "en", prompt: str | None = None):
         self.model = _local_path(model)
         self.language = language
+        self.prompt = prompt  # vocabulary hint, e.g. installed app names
 
     def warmup(self) -> None:
         self.transcribe(np.zeros(16_000, dtype=np.float32))
@@ -40,7 +41,16 @@ class Transcriber:
             language=self.language,
             condition_on_previous_text=False,
             no_speech_threshold=0.6,
+            initial_prompt=self.prompt,
         )
         text = (result.get("text") or "").strip()
+        # Drop low-confidence output: Whisper turns noise into fluent-looking gibberish.
+        segs = result.get("segments") or []
+        if segs:
+            avg_logprob = sum(s["avg_logprob"] for s in segs) / len(segs)
+            if avg_logprob < -1.0 or max(s["compression_ratio"] for s in segs) > 2.4:
+                return ""
+        if text and sum(not c.isascii() for c in text) / len(text) > 0.1:
+            return ""  # English-only mode: lots of foreign script means garbage
         normalized = re.sub(r"[^\w\s.]", "", text.lower()).strip(" .")
         return "" if normalized in _HALLUCINATIONS else text

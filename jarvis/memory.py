@@ -32,12 +32,13 @@ Assistant: %s"""
 
 
 class Memory:
-    def __init__(self, db_path: Path, embed_model: str, llm_model: str):
+    def __init__(self, db_path: Path, embed_model: str, llm_model: str, llm_ctx: int = 8192):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.lock = threading.Lock()
         self.embed_model = embed_model
         self.llm_model = llm_model
+        self.llm_ctx = llm_ctx  # must match the chat's num_ctx or Ollama reloads the model
         with self.lock:
             self.db.executescript(
                 """
@@ -121,7 +122,7 @@ class Memory:
             format="json",
             think=False,
             keep_alive=-1,
-            options={"temperature": 0},
+            options={"temperature": 0, "num_ctx": self.llm_ctx},
         )
         try:
             facts = json.loads(resp.message.content).get("facts", [])

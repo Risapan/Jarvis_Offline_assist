@@ -12,9 +12,12 @@ import re
 import sys
 import time
 
+from . import tools
 from .config import Config
 from .memory import Memory
 
+YES_WORDS = {"yes", "yeah", "yep", "sure", "ok", "okay", "confirm", "affirmative", "go", "do", "proceed", "please", "run"}
+NO_WORDS = {"no", "nope", "don't", "dont", "stop", "cancel", "negative", "wait"}
 EXIT_PHRASES = {"goodbye", "goodbye jarvis", "shut down", "exit", "quit", "go to sleep"}
 DIM, CYAN, GREEN, YELLOW, RESET = "\033[2m", "\033[36m", "\033[32m", "\033[33m", "\033[0m"
 
@@ -58,7 +61,7 @@ def main() -> None:
         cfg.llm_model = args.model
 
     status(f"Loading memory ({cfg.db_path.name}) ...")
-    memory = Memory(cfg.db_path, cfg.embed_model, cfg.llm_model)
+    memory = Memory(cfg.db_path, cfg.embed_model, cfg.llm_model, cfg.llm_ctx)
 
     from .brain import Brain
 
@@ -94,6 +97,32 @@ def main() -> None:
     def on_learned(facts: list[str]) -> None:
         for f in facts:
             print(f"{DIM}  [memory +] {f}{RESET}", flush=True)
+
+    def confirm(question: str) -> bool:
+        """Ask a yes/no question out loud (or in the terminal) before a risky action."""
+        title, _, detail = question.partition("\n")
+        print(f"\n{YELLOW}⚠ {title}{RESET}")
+        if detail:
+            print(f"{DIM}{detail}{RESET}")
+        if not listener:
+            return input(f"{YELLOW}  [y/N]{RESET} ").strip().lower() in {"y", "yes"}
+        if speaker:
+            speaker.wait()
+            speaker.say(title + " Yes or no?")
+            speaker.wait()
+        listener.flush()
+        print(f"{GREEN}● waiting for yes/no...{RESET}", end="\r", flush=True)
+        answer = transcriber.transcribe(listener.listen())
+        words = set(re.findall(r"[a-z']+", answer.lower()))
+        approved = bool(words & YES_WORDS) and not (words & NO_WORDS)
+        print(f"{GREEN}You:{RESET} {answer}  → {'approved' if approved else 'declined'}")
+        return approved
+
+    def on_tool(name: str, args: dict, result: str) -> None:
+        shown = ", ".join(f"{k}={v!r}" for k, v in args.items())
+        print(f"\n{DIM}  [tool] {name}({shown}) → {result[:200]}{RESET}", flush=True)
+
+    tools.set_confirm(confirm, cfg.confirm_risky)
 
     say(f"Online and at your service, {cfg.user_name}.")
     try:
@@ -131,7 +160,7 @@ def main() -> None:
             print(f"{CYAN}Jarvis:{RESET} ", end="", flush=True)
             reply_parts: list[str] = []
             first = True
-            for sentence in brain.reply(user_text):
+            for sentence in brain.reply(user_text, on_tool):
                 if first:
                     latency = time.perf_counter() - t0
                     first = False
