@@ -30,8 +30,8 @@ when nothing else fits. After acting, confirm in a few words, e.g. "Safari is op
 Speech recognition can mishear app names; if a requested app doesn't exist, pick the closest
 installed app that makes sense or ask.
 
-Current date and time: {now}.
-{memories}"""
+Each user message may start with a [context] block (current time, things you remember about the
+user). Use it silently; never read it out or mention it."""
 
 # End of sentence: . ! ? followed by whitespace, or a newline.
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -57,24 +57,32 @@ class Brain:
     def __init__(self, cfg: Config, memory: Memory):
         self.cfg = cfg
         self.memory = memory
+        # Kept byte-identical between turns so Ollama can reuse the cached system + tools prefix.
+        self._system = SYSTEM_PROMPT.format(user=cfg.user_name)
 
     def warmup(self) -> None:
-        ollama.chat(model=self.cfg.llm_model, messages=[{"role": "user", "content": "hi"}],
-                    think=self.cfg.llm_think, keep_alive=-1, options={"num_predict": 1, "num_ctx": self.cfg.llm_ctx})
+        """Load the models and pre-fill Ollama's prompt cache with the system prompt + tool schemas."""
         self.memory._embed(["warmup"], "search_query")  # load the embedding model too
+        ollama.chat(
+            model=self.cfg.llm_model,
+            messages=[{"role": "system", "content": self._system}, {"role": "user", "content": "hi"}],
+            tools=tools.TOOLS if self.cfg.tools_enabled else None,
+            think=self.cfg.llm_think,
+            keep_alive=-1,
+            options={"num_predict": 1, "num_ctx": self.cfg.llm_ctx},
+        )
 
     def _messages(self, user_text: str) -> list[dict]:
+        # Things that change every turn (time, recalled memories) go in the user message, not the
+        # system prompt, so the large system + tools prefix stays cached.
         facts = self.memory.recall(user_text, self.cfg.recall_k, self.cfg.recall_min_score)
-        memories = ("Things you remember about the user:\n" + "\n".join(f"- {f}" for f in facts)) if facts else ""
-        system = SYSTEM_PROMPT.format(
-            user=self.cfg.user_name,
-            now=datetime.now().strftime("%A %d %B %Y, %H:%M"),
-            memories=memories,
-        )
+        context = [f"Now: {datetime.now().strftime('%A %d %B %Y, %H:%M')}."]
+        if facts:
+            context.append("You remember: " + " ".join(facts))
         return (
-            [{"role": "system", "content": system}]
+            [{"role": "system", "content": self._system}]
             + self.memory.recent_turns(self.cfg.history_turns)
-            + [{"role": "user", "content": user_text}]
+            + [{"role": "user", "content": "[context] " + " ".join(context) + " [/context]\n" + user_text}]
         )
 
     def _stream(self, messages: list[dict], tool_calls: list) -> Iterator[str]:
