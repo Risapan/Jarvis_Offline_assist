@@ -35,9 +35,9 @@ class Config:
     # Ears
     stt_model: str = "mlx-community/whisper-large-v3-turbo"
     language: str = "en"
-    vad_aggressiveness: int = 2  # 0..3, higher = stricter about what counts as speech
-    end_silence_ms: int = 900  # silence that ends an utterance
-    max_utterance_s: float = 30.0
+    vad_aggressiveness: int = 3  # 0..3, higher = stricter about what counts as speech
+    end_silence_ms: int = 700  # silence that ends an utterance
+    max_utterance_s: float = 15.0
 
     # Voice
     tts_model: Path = ROOT / "models" / "kokoro-v1.0.onnx"

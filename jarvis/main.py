@@ -136,8 +136,13 @@ def main() -> None:
                 print(f"{YELLOW}◐ transcribing...{RESET}", end="\r", flush=True)
                 user_text = transcriber.transcribe(audio)
                 if not user_text:
+                    if transcriber.last_rejected:
+                        print(f"{DIM}  [ignored] {transcriber.last_rejected}{RESET}" + " " * 10)
+                    if transcriber.near_miss and len(audio) > 16_000 * 1.2:  # real speech, just unclear
+                        say("Sorry, I didn't catch that.")
                     continue
-                print(f"{GREEN}You:{RESET} {user_text}" + " " * 10)
+                stt_s = time.perf_counter() - t0
+                print(f"{GREEN}You:{RESET} {user_text}  {DIM}({len(audio)/16000:.1f}s audio, heard in {stt_s:.2f}s){RESET}" + " " * 10)
             else:
                 try:
                     user_text = input(f"{GREEN}You:{RESET} ").strip()

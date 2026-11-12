@@ -21,6 +21,10 @@ PRE_ROLL_MS = 300
 START_WINDOW = 10  # frames inspected when deciding speech has started
 START_RATIO = 0.6  # fraction of START_WINDOW that must be voiced
 MIN_SPEECH_MS = 250  # utterances shorter than this are dropped as noise
+# Loudness gate: a frame only counts as speech if it is clearly louder than the room.
+# The noise floor adapts to background chatter/TV, so only the close (loud) voice triggers.
+MIN_RMS = 250.0  # absolute minimum, int16 units
+GATE_RATIO = 2.5  # speech must be this many times louder than the noise floor
 
 
 class Listener:
@@ -28,6 +32,7 @@ class Listener:
         self.vad = webrtcvad.Vad(aggressiveness)
         self.end_silence_frames = end_silence_ms // FRAME_MS
         self.max_frames = int(max_utterance_s * 1000 / FRAME_MS)
+        self.noise_floor = MIN_RMS / GATE_RATIO
         self._frames: queue.Queue[bytes] = queue.Queue()
         self._stream = sd.RawInputStream(
             samplerate=SAMPLE_RATE,
@@ -68,7 +73,12 @@ class Listener:
             frame = self._frames.get()
             if len(frame) != FRAME_SAMPLES * 2:
                 continue
-            is_speech = self.vad.is_speech(frame, SAMPLE_RATE)
+            rms = float(np.sqrt(np.mean(np.frombuffer(frame, dtype=np.int16).astype(np.float32) ** 2)))
+            loud = rms >= max(MIN_RMS, self.noise_floor * GATE_RATIO)
+            is_speech = loud and self.vad.is_speech(frame, SAMPLE_RATE)
+            if not is_speech:  # track background level (rises fast, falls slowly)
+                a = 0.05 if rms > self.noise_floor else 0.01
+                self.noise_floor += a * (rms - self.noise_floor)
 
             if not speaking:
                 pre_roll.append(frame)

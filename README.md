@@ -42,6 +42,8 @@ uv run jarvis --model jarvis     # use a different Ollama model
 
 Use headphones in voice mode. The mic is ignored while Jarvis is speaking, but laptop speakers can still bleed into the next turn.
 
+Background voices (TV, people nearby) are filtered by an adaptive loudness gate: a frame only counts as speech when it is `GATE_RATIO` (2.5) times louder than the room's running noise floor. If Jarvis misses your voice, lower `GATE_RATIO` / `MIN_RMS` in `jarvis/audio.py`; if it still reacts to the room, raise them. Rejected transcripts are shown in grey as `[ignored]` with the reason, and each turn prints the audio length and transcription time.
+
 ### Mac control
 
 Jarvis can control your Mac through tools the LLM calls:

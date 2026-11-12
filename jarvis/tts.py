@@ -12,6 +12,18 @@ import sounddevice as sd
 from kokoro_onnx import Kokoro
 
 _STOP = object()
+SAMPLE_RATE = 24_000  # Kokoro output rate
+_FADE = int(0.008 * SAMPLE_RATE)  # 8 ms fade in/out removes start/stop clicks
+_GAP = np.zeros(int(0.12 * SAMPLE_RATE), dtype=np.float32)  # natural pause between sentences
+
+
+def _smooth(samples: np.ndarray) -> np.ndarray:
+    samples = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
+    if len(samples) > 2 * _FADE:
+        ramp = np.linspace(0.0, 1.0, _FADE, dtype=np.float32)
+        samples[:_FADE] *= ramp
+        samples[-_FADE:] *= ramp[::-1]
+    return samples
 
 
 def clean_for_speech(text: str) -> str:
@@ -60,11 +72,16 @@ class Speaker:
             self._audio_q.put((samples, sr))
 
     def _play_loop(self) -> None:
+        # One stream for the whole session: opening/closing per sentence causes pops.
+        stream = sd.OutputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", latency="high")
+        stream.start()
         while True:
             samples, sr = self._audio_q.get()
             if len(samples):
-                sd.play(samples, sr)
-                sd.wait()
+                if sr != SAMPLE_RATE:  # shouldn't happen with Kokoro; resample just in case
+                    idx = np.linspace(0, len(samples) - 1, int(len(samples) * SAMPLE_RATE / sr))
+                    samples = np.interp(idx, np.arange(len(samples)), samples)
+                stream.write(np.concatenate([_smooth(samples), _GAP]).reshape(-1, 1))
             with self._idle:
                 self._pending -= 1
                 self._idle.notify_all()

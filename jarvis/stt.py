@@ -30,6 +30,8 @@ class Transcriber:
         self.model = _local_path(model)
         self.language = language
         self.prompt = prompt  # vocabulary hint, e.g. installed app names
+        self.last_rejected = ""  # what was dropped last time and why (for debugging)
+        self.near_miss = False  # dropped, but it was probably real speech worth asking to repeat
 
     def warmup(self) -> None:
         self.transcribe(np.zeros(16_000, dtype=np.float32))
@@ -43,14 +45,23 @@ class Transcriber:
             no_speech_threshold=0.6,
             initial_prompt=self.prompt,
         )
+        self.last_rejected = ""
+        self.near_miss = False
         text = (result.get("text") or "").strip()
         # Drop low-confidence output: Whisper turns noise into fluent-looking gibberish.
         segs = result.get("segments") or []
         if segs:
             avg_logprob = sum(s["avg_logprob"] for s in segs) / len(segs)
-            if avg_logprob < -1.0 or max(s["compression_ratio"] for s in segs) > 2.4:
+            ratio = max(s["compression_ratio"] for s in segs)
+            if avg_logprob < -1.0 or ratio > 2.4:
+                self.last_rejected = f"{text!r} (low confidence {avg_logprob:.2f}, ratio {ratio:.1f})"
+                self.near_miss = avg_logprob > -1.6 and ratio <= 2.4  # very low = noise, stay quiet
                 return ""
         if text and sum(not c.isascii() for c in text) / len(text) > 0.1:
+            self.last_rejected = f"{text!r} (non-English)"
             return ""  # English-only mode: lots of foreign script means garbage
         normalized = re.sub(r"[^\w\s.]", "", text.lower()).strip(" .")
-        return "" if normalized in _HALLUCINATIONS else text
+        if normalized in _HALLUCINATIONS:
+            self.last_rejected = f"{text!r} (likely noise)" if text else ""
+            return ""
+        return text
