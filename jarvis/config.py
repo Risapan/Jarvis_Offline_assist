@@ -35,7 +35,7 @@ class Config:
     # Ears
     stt_model: str = "mlx-community/whisper-large-v3-turbo"
     language: str = "en"
-    vad_aggressiveness: int = 3  # 0..3, higher = stricter about what counts as speech
+    vad_aggressiveness: int = 2  # 0..3, higher = stricter about what counts as speech
     end_silence_ms: int = 700  # silence that ends an utterance
     max_utterance_s: float = 15.0
 
@@ -45,6 +45,9 @@ class Config:
     voice: str = "bm_george"  # British male; try bm_lewis, bm_daniel, bf_emma
     voice_lang: str = "en-gb"
     voice_speed: float = 1.05
+    voice_loudness: float = 0.95  # peak level of Jarvis's voice, 0..1
+    duck_media: bool = True  # lower Spotify / Apple Music while Jarvis talks
+    duck_level: float = 0.2  # ...to this fraction of their volume
 
     # Memory
     embed_model: str = "nomic-embed-text"

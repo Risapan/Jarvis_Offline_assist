@@ -74,7 +74,11 @@ def main() -> None:
         from .tts import Speaker
 
         status(f"Loading voice ({cfg.voice}) ...")
-        speaker = Speaker(cfg.tts_model, cfg.tts_voices, cfg.voice, cfg.voice_lang, cfg.voice_speed)
+        from .ducking import Ducker
+
+        ducker = Ducker(cfg.duck_level) if cfg.duck_media else None
+        speaker = Speaker(cfg.tts_model, cfg.tts_voices, cfg.voice, cfg.voice_lang, cfg.voice_speed,
+                          cfg.voice_loudness, ducker)
         speaker.warmup()
 
     listener = transcriber = None

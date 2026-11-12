@@ -17,8 +17,12 @@ _FADE = int(0.008 * SAMPLE_RATE)  # 8 ms fade in/out removes start/stop clicks
 _GAP = np.zeros(int(0.12 * SAMPLE_RATE), dtype=np.float32)  # natural pause between sentences
 
 
-def _smooth(samples: np.ndarray) -> np.ndarray:
-    samples = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
+def _smooth(samples: np.ndarray, target_peak: float = 0.0) -> np.ndarray:
+    samples = np.asarray(samples, dtype=np.float32)
+    peak = float(np.abs(samples).max()) if len(samples) else 0.0
+    if target_peak and peak > 1e-4:  # loudness: bring every sentence up to the same level
+        samples = samples * min(target_peak / peak, 4.0)
+    samples = np.clip(samples, -1.0, 1.0)
     if len(samples) > 2 * _FADE:
         ramp = np.linspace(0.0, 1.0, _FADE, dtype=np.float32)
         samples[:_FADE] *= ramp
@@ -34,9 +38,12 @@ def clean_for_speech(text: str) -> str:
 
 
 class Speaker:
-    def __init__(self, model_path, voices_path, voice: str, lang: str, speed: float):
+    def __init__(self, model_path, voices_path, voice: str, lang: str, speed: float,
+                 loudness: float = 0.95, ducker=None):
         self.kokoro = Kokoro(str(model_path), str(voices_path))
         self.voice, self.lang, self.speed = voice, lang, speed
+        self.loudness = loudness  # target peak level, 0..1 (0 = leave Kokoro's level alone)
+        self.ducker = ducker  # lowers Spotify/Music while speaking
         self._text_q: queue.Queue = queue.Queue()
         self._audio_q: queue.Queue = queue.Queue(maxsize=4)
         self._pending = 0
@@ -78,10 +85,14 @@ class Speaker:
         while True:
             samples, sr = self._audio_q.get()
             if len(samples):
+                if self.ducker:
+                    self.ducker.duck()  # no-op if already ducked
                 if sr != SAMPLE_RATE:  # shouldn't happen with Kokoro; resample just in case
                     idx = np.linspace(0, len(samples) - 1, int(len(samples) * SAMPLE_RATE / sr))
                     samples = np.interp(idx, np.arange(len(samples)), samples)
-                stream.write(np.concatenate([_smooth(samples), _GAP]).reshape(-1, 1))
+                stream.write(np.concatenate([_smooth(samples, self.loudness), _GAP]).reshape(-1, 1))
             with self._idle:
                 self._pending -= 1
+                if self._pending == 0 and self.ducker:
+                    self.ducker.release()
                 self._idle.notify_all()

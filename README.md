@@ -42,7 +42,9 @@ uv run jarvis --model jarvis     # use a different Ollama model
 
 Use headphones in voice mode. The mic is ignored while Jarvis is speaking, but laptop speakers can still bleed into the next turn.
 
-Background voices (TV, people nearby) are filtered by an adaptive loudness gate: a frame only counts as speech when it is `GATE_RATIO` (2.5) times louder than the room's running noise floor. If Jarvis misses your voice, lower `GATE_RATIO` / `MIN_RMS` in `jarvis/audio.py`; if it still reacts to the room, raise them. Rejected transcripts are shown in grey as `[ignored]` with the reason, and each turn prints the audio length and transcription time.
+Background voices (TV, people nearby) are filtered by an adaptive loudness gate: a frame only counts as speech when it is `GATE_RATIO` (1.6) times louder than the room's background level (the quiet end of the last 3 seconds). If Jarvis misses your voice, lower `GATE_RATIO` / `MIN_RMS` in `jarvis/audio.py`; if it still reacts to the room, raise them. Rejected transcripts are shown in grey as `[ignored]` with the reason, and each turn prints the audio length and transcription time. The end of your sentence is judged against your own voice level, so quieter voices in the room count as silence.
+
+While Jarvis talks, Spotify and Apple Music are lowered to 20% of their volume and restored afterwards (`JARVIS_DUCK_MEDIA=0` to disable, `JARVIS_DUCK_LEVEL` to change). Browser audio can't be lowered per app on macOS. Jarvis's voice is normalized to near full scale (`JARVIS_VOICE_LOUDNESS`).
 
 ### Mac control
 
